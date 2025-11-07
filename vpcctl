@@ -1,0 +1,77 @@
+#!/bin/bash
+# vpcctl - A simple CLI tool to create and manage virtual private clouds on Linux
+
+set -e
+
+LOGFILE="/tmp/vpcctl.log"
+
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a $LOGFILE
+}
+
+usage() {
+  echo "Usage: $0 {create|add-subnet|delete|list} [options]"
+  exit 1
+}
+
+create_vpc() {
+  VPC_NAME=$1
+  CIDR=$2
+
+  if [ -z "$VPC_NAME" ] || [ -z "$CIDR" ]; then
+    echo "Usage: vpcctl create <vpc_name> <cidr_block>"
+    exit 1
+  fi
+
+  log "Creating VPC '$VPC_NAME' with CIDR '$CIDR'"
+  sudo ip link add ${VPC_NAME}-br0 type bridge
+  sudo ip addr add ${CIDR%0/*}1/${CIDR#*/} dev ${VPC_NAME}-br0
+  sudo ip link set ${VPC_NAME}-br0 up
+  log "VPC $VPC_NAME created successfully."
+}
+
+add_subnet() {
+  VPC_NAME=$1
+  SUBNET_NAME=$2
+  CIDR=$3
+  TYPE=$4
+
+  log "Adding $TYPE subnet '$SUBNET_NAME' ($CIDR) to VPC '$VPC_NAME'"
+
+  sudo ip netns add ${VPC_NAME}-${SUBNET_NAME}
+  sudo ip link add veth-${SUBNET_NAME} type veth peer name veth-${SUBNET_NAME}-br
+
+  sudo ip link set veth-${SUBNET_NAME}-br master ${VPC_NAME}-br0
+  sudo ip link set veth-${SUBNET_NAME}-br up
+  sudo ip link set veth-${SUBNET_NAME} netns ${VPC_NAME}-${SUBNET_NAME}
+
+  sudo ip netns exec ${VPC_NAME}-${SUBNET_NAME} ip addr add ${CIDR%0/*}2/${CIDR#*/} dev veth-${SUBNET_NAME}
+  sudo ip netns exec ${VPC_NAME}-${SUBNET_NAME} ip link set veth-${SUBNET_NAME} up
+  sudo ip netns exec ${VPC_NAME}-${SUBNET_NAME} ip route add default via ${CIDR%0/*}1
+
+  log "Subnet ${SUBNET_NAME} created successfully."
+}
+
+delete_vpc() {
+  VPC_NAME=$1
+  log "Deleting VPC '$VPC_NAME'"
+
+  sudo ip link del ${VPC_NAME}-br0 || true
+  for ns in $(sudo ip netns list | grep $VPC_NAME | awk '{print $1}'); do
+    sudo ip netns del $ns
+  done
+  log "VPC $VPC_NAME deleted successfully."
+}
+
+list_vpcs() {
+  log "Existing VPC bridges:"
+  ip link show type bridge
+}
+
+case "$1" in
+  create) create_vpc $2 $3 ;;
+  add-subnet) add_subnet $2 $3 $4 $5 ;;
+  delete) delete_vpc $2 ;;
+  list) list_vpcs ;;
+  *) usage ;;
+esac
