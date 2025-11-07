@@ -42,11 +42,16 @@ chmod +x vpcctl
 
 ## 🎯 Expected Behavior
 
-Test------------------------------------->>Expected Result
+# Test------------------------------------->>Expected Result
+
 Same VPC communication------------------->>✅ Works
+
 Internet access from public subnet------->>✅ Works
+
 Internet access from private subnet------>>❌ Blocked
+
 Inter-VPC communication------------------>>❌ Blocked
+
 After peering---------------------------->>✅ Controlled communication
 
 ---
