@@ -1,7 +1,6 @@
 #!/bin/bash
 # ------------------------------------------------------------------------------
 # cleanup.sh — Safely remove all virtual VPC components
-# Author: Your Name
 # Description:
 #   This script cleans up any virtual networks, bridges, veth pairs,
 #   and network namespaces created during your VPC project experiments.
