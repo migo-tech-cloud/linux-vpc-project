@@ -1,18 +1,7 @@
 #!/bin/bash
-# ------------------------------------------------------------------------------
-# cleanup.sh — Safely remove all virtual VPC components
-# Author: Your Name
-# Description:
-#   This script cleans up any virtual networks, bridges, veth pairs,
-#   and network namespaces created during your VPC project experiments.
-# ------------------------------------------------------------------------------
+# cleanup.sh — remove all VPC components cleanly
 
-set -e
-
-echo "=========================================="
-echo "🧹  Starting VPC Environment Cleanup"
-echo "=========================================="
-
+echo "[+] Cleaning up existing VPC resources..."
 # Delete namespaces
 for ns in $(ip netns list | awk '{print $1}'); do
   echo "Deleting namespace: $ns"
