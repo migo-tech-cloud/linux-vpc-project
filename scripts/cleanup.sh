@@ -1,39 +1,30 @@
 #!/bin/bash
-# ------------------------------------------------------------------------------
-# cleanup.sh — Safely remove all virtual VPC components
-# Author: Your Name
-# Description:
-#   This script cleans up any virtual networks, bridges, veth pairs,
-#   and network namespaces created during your VPC project experiments.
-# ------------------------------------------------------------------------------
+# cleanup.sh — remove all VPC components cleanly
 
-set -e
+echo "[+] Cleaning up existing VPC resources..."
 
-echo "=========================================="
-echo "🧹  Starting VPC Environment Cleanup"
-echo "=========================================="
-
-# Delete all network namespaces
-echo "[+] Deleting all network namespaces..."
+# Delete namespaces
 for ns in $(ip netns list | awk '{print $1}'); do
-  echo "    -> Removing namespace: $ns"
-  sudo ip netns delete "$ns" || echo "      (Namespace $ns not found)"
+  echo "Deleting namespace: $ns"
+  ip netns delete $ns
 done
 
-# Delete all Linux bridges
-echo "[+] Deleting all Linux bridges..."
+# Delete bridges
 for br in $(ip link show type bridge | awk -F: '{print $2}' | awk '{print $1}'); do
-  echo "    -> Removing bridge: $br"
-  sudo ip link delete "$br" type bridge 2>/dev/null || echo "      (Bridge $br not found)"
+  echo "Deleting bridge: $br"
+  ip link set $br down
+  ip link delete $br type bridge
 done
 
-# Delete all veth pairs
-echo "[+] Deleting all veth pairs..."
+# Delete veth pairs
 for veth in $(ip link show | grep veth | awk -F: '{print $2}' | awk '{print $1}'); do
-  echo "    -> Removing veth: $veth"
-  sudo ip link delete "$veth" 2>/dev/null || echo "      (veth $veth not found)"
+  echo "Deleting veth: $veth"
+  ip link delete $veth 2>/dev/null
 done
 
-echo "=========================================="
-echo "✅  Cleanup complete — environment reset."
-echo "=========================================="
+# Flush iptables
+iptables -t nat -F
+iptables -F
+iptables -X
+
+echo "[✓] Cleanup complete. System reset to default networking state."
