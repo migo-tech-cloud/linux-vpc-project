@@ -1,79 +1,58 @@
 #!/usr/bin/env python3
 import argparse
-import subprocess
-import sys
-import json
+import os
 
+# Base directory for bash scripts
+SCRIPT_DIR = os.path.join(os.path.dirname(__file__), "scripts")
 
-# Utility to run shell commands safely
-def run(cmd):
-print(f"$ {cmd}")
-result = subprocess.run(cmd, shell=True, text=True, capture_output=True)
-if result.returncode != 0:
-print(result.stderr.strip())
-else:
-print(result.stdout.strip())
+def run_script(script_name, *args):
+    script_path = os.path.join(SCRIPT_DIR, script_name)
+    cmd = f"bash {script_path} {' '.join(args)}"
+    print(f"\n🔹 Running: {cmd}\n")
+    os.system(cmd)
 
+def main():
+    parser = argparse.ArgumentParser(
+        description="Migo VPC Control CLI — manage and demo Migo-vpc-1 & Migo-vpc-2 with peering and NAT"
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-# Create a new VPC (bridge + namespaces)
-def create_vpc(args):
-vpc = args.name
-cidr = args.cidr
-bridge = f"{vpc}-br0"
-host_iface = args.interface or "$(ip route show default | awk '/default/ {print $5}')"
+    # Create both VPCs
+    subparsers.add_parser("create", help="Create both Migo-vpc-1 and Migo-vpc-2")
 
+    # Peer them
+    subparsers.add_parser("peer", help="Peer Migo-vpc-1 and Migo-vpc-2 together")
 
-print(f"\n=== Creating VPC {vpc} with CIDR {cidr} ===")
-run(f"sudo ip link add {bridge} type bridge")
-run(f"sudo ip addr add {cidr.split('.')[0]}.0.0.1/16 dev {bridge}")
-run(f"sudo ip link set {bridge} up")
+    # Start/stop HTTP demo server
+    start_srv = subparsers.add_parser("start-server", help="Run HTTP server in Migo-vpc-1 public subnet")
+    stop_srv = subparsers.add_parser("stop-server", help="Stop all HTTP servers")
 
+    # Cleanup
+    subparsers.add_parser("cleanup", help="Clean up all Migo VPC components")
 
-# Enable forwarding and NAT
-run("sudo sysctl -w net.ipv4.ip_forward=1")
-run(f"sudo iptables -t nat -A POSTROUTING -o {host_iface} -j MASQUERADE")
-print(f"✅ VPC {vpc} created with bridge {bridge}\n")
+    args = parser.parse_args()
 
+    if args.command == "create":
+        print("🚀 Creating Migo-vpc-1 and Migo-vpc-2...")
+        run_script("create_vpc1.sh", "Migo-vpc-1", "enX0")
+        run_script("create_vpc2.sh", "Migo-vpc-2", "enX0")
 
-# Add subnet (namespace)
-def add_subnet(args):
-vpc = args.vpc
-subnet = args.name
-subnet_type = args.type
-cidr = args.cidr
+    elif args.command == "peer":
+        print("🤝 Peering Migo-vpc-1 and Migo-vpc-2...")
+        run_script("peer_vpcs.sh", "Migo-vpc-1", "Migo-vpc-2")
 
+    elif args.command == "start-server":
+        run_script("start_server.sh", "Migo-vpc-1", "public")
 
-ns = f"{vpc}-{subnet}"
-bridge = f"{vpc}-br0"
-veth1 = f"veth-{subnet}"
-veth2 = f"veth-{subnet}-br"
+    elif args.command == "stop-server":
+        run_script("stop_server.sh")
 
+    elif args.command == "cleanup":
+        run_script("cleanup.sh")
 
-print(f"\n=== Adding {subnet_type} subnet: {ns} ===")
-run(f"sudo ip netns add {ns}")
-run(f"sudo ip link add {veth1} type veth peer name {veth2}")
-run(f"sudo ip link set {veth1} netns {ns}")
-run(f"sudo ip link set {veth2} master {bridge}")
-run(f"sudo ip -n {ns} addr add {cidr} dev {veth1}")
-run(f"sudo ip -n {ns} link set {veth1} up")
-run(f"sudo ip link set {veth2} up")
-run(f"sudo ip -n {ns} route add default via {cidr.split('.')[0]}.0.0.1 || true")
+    else:
+        parser.print_help()
 
+if __name__ == "__main__":
+    main()
 
-if subnet_type == "public":
-run(f"sudo iptables -t nat -A POSTROUTING -s {cidr} -o enX0 -j MASQUERADE")
-
-
-print(f"✅ Subnet {ns} added and connected to {bridge}\n")
-
-
-# Peering setup between two VPCs
-def peer_vpcs(args):
-vpc1, vpc2 = args.vpc1, args.vpc2
-br1, br2 = f"{vpc1}-br0", f"{vpc2}-br0"
-
-
-print(f"\n=== Peering {vpc1} ↔ {vpc2} ===")
-run(f"sudo ip link add {vpc1}-{vpc2}-peer1 type veth peer name {vpc2}-{vpc1}-peer2")
-run(f"sudo ip link set {vpc1}-{vpc2}-peer1 master {br1}")
-main()

@@ -1,29 +1,23 @@
 #!/bin/bash
-# cleanup.sh — remove all VPC components cleanly
+echo "🧹 Cleaning up all VPCs..."
 
-echo "[+] Cleaning up existing VPC resources..."
 # Delete namespaces
-for ns in $(ip netns list | awk '{print $1}'); do
-  echo "Deleting namespace: $ns"
-  ip netns delete $ns
+for ns in Migo-vpc-1-public Migo-vpc-1-private Migo-vpc-2-public Migo-vpc-2-private; do
+    sudo ip netns delete $ns 2>/dev/null
 done
 
 # Delete bridges
-for br in $(ip link show type bridge | awk -F: '{print $2}' | awk '{print $1}'); do
-  echo "Deleting bridge: $br"
-  ip link set $br down
-  ip link delete $br type bridge
+for br in Migo-vpc-1-br0 Migo-vpc-2-br0; do
+    sudo ip link delete $br type bridge 2>/dev/null
 done
 
-# Delete veth pairs
-for veth in $(ip link show | grep veth | awk -F: '{print $2}' | awk '{print $1}'); do
-  echo "Deleting veth: $veth"
-  ip link delete $veth 2>/dev/null
+# Delete veth pairs (if exist)
+for v in veth-pub veth-pub-br veth-priv veth-priv-br Migo-vpc-1-to-Migo-vpc-2 Migo-vpc-2-to-Migo-vpc-1; do
+    sudo ip link delete $v 2>/dev/null
 done
 
-# Flush iptables
-iptables -t nat -F
-iptables -F
-iptables -X
+# Flush NAT rules
+sudo iptables -t nat -F
 
-echo "[✓] Cleanup complete. System reset to default networking state."
+echo "✅ Cleanup complete!"
+

@@ -1,50 +1,51 @@
-> **Purpose:** Troubleshooting and teardown reference.
+## **3️⃣ `runbook.md`**
+```markdown
+# Linux VPC Project Runbook
+
+## Purpose:
+Guide for setup, testing, troubleshooting, and cleanup of Migo VPCs.
+
+---
+
+## 1. Setup
+1. SSH into your EC2 instance (via MobaXterm)
+2. Clone the repository:
+
+git clone https://github.com/<your-username>/linux-vpc-project.git
+cd linux-vpc-project
+3. Ensure scripts are executable:
+
+chmod +x scripts/*.sh
+## 2. Running the Demo
+1. Create VPCs:
+
+python3 vpcctl.py create
+2. Peer VPCs:
+
+python3 vpcctl.py peer
+3. Start demo HTTP server:
+
+python3 vpcctl.py start-server
+
+4. Verify connectivity between subnets and NAT.
+
+## 3. Troubleshooting
+- Error: Nexthop has invalid gateway → Ensure veths and bridge IPs match subnet CIDR.
+
+- Ping fails between namespaces → Check link states: ip link & ip netns exec <ns> ip addr.
+
+- HTTP server not reachable → Ensure IP assigned inside namespace and server running.
+
+## 4. Cleanup
+
+python3 vpcctl.py cleanup
+Confirms all namespaces, bridges, veths, and NAT rules are removed.
+
+## 5. Notes
+- Hardcoded VPC names: Migo-vpc-1 and Migo-vpc-2
+
+- Host interface: enX0
+
+- Screenshots recommended after creation, peering, server start, and cleanup.
 
 
-# 🧯 Runbook: Troubleshooting and Cleanup
-
-## Common Issues
-
-### 1. Namespace not found
-
-Run:
-sudo ip netns list
-
-If the namespace is missing, recreate it using:
-
-./vpcctl add-subnet vpc1 public 10.0.1.0/24 public
-
-### 2. Bridge already exists
-If a VPC was deleted partially, clean up manually:
-
-sudo ip link del vpc1-br0
-
-sudo iptables -t nat -F
-
-### 3. No Internet Access from Public Subnet
-
-Ensure NAT is enabled:
-
-sudo iptables -t nat -A POSTROUTING -s 10.0.1.0/24 -o eth0 -j MASQUERADE
-
-sudo sysctl -w net.ipv4.ip_forward=1
-
-### 4. Permission Errors
-
-All commands that touch networking need sudo.
-
-### 5. Cleanup Everything
-
-./scripts/delete_vpc.sh vpc1
-
-sudo iptables -t nat -F
-
-sudo ip netns list | awk '{print $1}' | xargs -n1 sudo ip netns del
-
-## ✅ Verification Commands
-
-ip link show type bridge
-
-ip netns list
-
-sudo iptables -t nat -L -n -v

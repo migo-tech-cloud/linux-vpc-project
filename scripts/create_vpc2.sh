@@ -1,55 +1,46 @@
 #!/bin/bash
-set -e
+# Usage: ./create_vpc2.sh Migo-vpc-2 <host_interface>
 
-echo "============================================================"
-echo "🚀 Creating VPC2 (10.1.0.0/16)..."
-echo "============================================================"
+VPC_NAME=$1
+HOST_IFACE=$2
+BRIDGE="${VPC_NAME}-br0"
 
-HOST_IF="enX0"
-BRIDGE="vpc2-br0"
-PUB_NS="vpc2-public"
-PRIV_NS="vpc2-private"
+echo "🔹 Creating VPC: $VPC_NAME"
 
-# Create namespaces
-sudo ip netns add $PUB_NS
-sudo ip netns add $PRIV_NS
-
-# Create bridge
+# Bridge
 sudo ip link add $BRIDGE type bridge
 sudo ip addr add 10.1.0.1/16 dev $BRIDGE
 sudo ip link set $BRIDGE up
 
-# veth pairs
-sudo ip link add veth2-pub type veth peer name veth2-pub-br
-sudo ip link add veth2-priv type veth peer name veth2-priv-br
+# Namespaces
+sudo ip netns add ${VPC_NAME}-public
+sudo ip netns add ${VPC_NAME}-private
 
-# Attach one end to namespaces
-sudo ip link set veth2-pub netns $PUB_NS
-sudo ip link set veth2-priv netns $PRIV_NS
+# Veth pairs
+sudo ip link add veth-pub type veth peer name veth-pub-br
+sudo ip link add veth-priv type veth peer name veth-priv-br
 
-# Attach the other ends to bridge
-sudo ip link set veth2-pub-br master $BRIDGE
-sudo ip link set veth2-priv-br master $BRIDGE
-sudo ip link set veth2-pub-br up
-sudo ip link set veth2-priv-br up
+sudo ip link set veth-pub netns ${VPC_NAME}-public
+sudo ip link set veth-priv netns ${VPC_NAME}-private
 
-# Assign IPs
-sudo ip -n $PUB_NS addr add 10.1.1.2/16 dev veth2-pub
-sudo ip -n $PRIV_NS addr add 10.1.2.2/16 dev veth2-priv
-sudo ip -n $PUB_NS link set veth2-pub up
-sudo ip -n $PRIV_NS link set veth2-priv up
+sudo ip link set veth-pub-br master $BRIDGE
+sudo ip link set veth-priv-br master $BRIDGE
 
-# Add routes
-sudo ip -n $PUB_NS route add default via 10.1.0.1 || true
-sudo ip -n $PRIV_NS route add default via 10.1.0.1 || true
+sudo ip link set veth-pub-br up
+sudo ip link set veth-priv-br up
 
-# Enable forwarding + NAT
-sudo sysctl -w net.ipv4.ip_forward=1 >/dev/null
-sudo iptables -t nat -A POSTROUTING -s 10.1.0.0/16 -o $HOST_IF -j MASQUERADE
+# IPs
+sudo ip -n ${VPC_NAME}-public addr add 10.1.1.2/16 dev veth-pub
+sudo ip -n ${VPC_NAME}-private addr add 10.1.2.2/16 dev veth-priv
 
-echo "============================================================"
-echo "✅ VPC2 successfully created!"
-echo "Bridge: $BRIDGE"
-echo "Public subnet: 10.1.1.2/16"
-echo "Private subnet: 10.1.2.2/16"
-echo "============================================================"
+sudo ip -n ${VPC_NAME}-public link set veth-pub up
+sudo ip -n ${VPC_NAME}-private link set veth-priv up
+
+# IP forwarding
+sudo sysctl -w net.ipv4.ip_forward=1 > /dev/null
+
+# NAT for public subnet
+sudo iptables -t nat -A POSTROUTING -s 10.1.1.0/24 -o $HOST_IFACE -j MASQUERADE
+
+echo "✅ VPC $VPC_NAME created successfully!"
+

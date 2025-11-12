@@ -1,72 +1,61 @@
-> **Purpose:** Project overview and usage guide.
-
-
-# 🏗️ Build Your Own Virtual Private Cloud (VPC) on Linux
-
-This project recreates how cloud platforms like AWS implement Virtual Private Clouds — using only native Linux networking tools.
-
----
-
-## 🚀 Features
-- Create and delete virtual VPCs.
-- Add public/private subnets using Linux network namespaces.
-- Enable routing between subnets.
-- Simulate NAT gateway for outbound access.
-- Enforce security group–like firewall rules.
-- Support optional VPC peering.
-- Full lifecycle automation via `vpcctl` CLI.
-
----
-
-## 🧰 Tools Used
-- `ip`, `ip netns`, `bridge`, `veth`, `iptables`
-- `bash` scripting for automation
-- `curl` and `ping` for testing
-- `python3 -m http.server` for app simulation
-
----
-
-## 🧩 Project Structure
-Refer to the folder layout in this repo.
-
----
-
-## 💻 Quick Start
-
-chmod +x vpcctl
-./scripts/create_vpc.sh
-./scripts/test_vpc.sh
-./scripts/delete_vpc.sh
-
----
-
-## 🎯 Expected Behavior
-
-# Test------------------------------------->>Expected Result
-
-Same VPC communication------------------->>✅ Works
-
-Internet access from public subnet------->>✅ Works
-
-Internet access from private subnet------>>❌ Blocked
-
-Inter-VPC communication------------------>>❌ Blocked
-
-After peering---------------------------->>✅ Controlled communication
-
----
-
-## 🧹 Cleanup
-
-Run:
-./scripts/delete_vpc.sh vpc1
-
----
+## **2️⃣ `README.md`**
 
 ## 🧠 Author
 
 Owajimimin John — DevOps Intern
 
+## This project demonstrates deep Linux networking, isolation, and automation skills.
+
 ---
 
-## This project demonstrates deep Linux networking, isolation, and automation skills.
+```markdown
+# Linux VPC Project
+
+**Overview:**
+This project simulates a Virtual Private Cloud (VPC) on a single Linux host using network namespaces, veth pairs, bridges, routing, and iptables. You can create multiple VPCs, public/private subnets, NAT gateways, and VPC peering.
+
+**Features:**
+- Create multiple VPCs with unique CIDRs
+- Public and private subnets
+- NAT gateway for public subnets
+- VPC isolation and peering
+- Firewall rules (Security Groups)
+- Easy automation via `vpcctl.py`
+
+**Usage:**
+
+# Create VPCs
+python3 vpcctl.py create
+
+# Peer VPCs
+python3 vpcctl.py peer
+
+# Start demo HTTP server in Migo-vpc-1 public subnet
+python3 vpcctl.py start-server
+
+# Stop demo HTTP servers
+python3 vpcctl.py stop-server
+
+# Clean up all VPC resources
+python3 vpcctl.py cleanup
+
+**Project Structure:**
+
+vpc-project/
+├── vpcctl.py
+├── config/policies.json
+├── scripts/
+├── examples/demo.md
+├── README.md
+└── runbook.md
+
+**Notes:**
+
+- Hardcoded VPC names: Migo-vpc-1 and Migo-vpc-2
+
+- Host interface in EC2: enX0
+
+- All actions are logged in the terminal
+
+
+

@@ -1,22 +1,56 @@
-# Demo: Linux-Based Virtual Private Cloud (VPC)
+# VPC Project Demo
 
-## Step 1: Create the VPC
+This document demonstrates how to use the `vpcctl` CLI to create, peer, test, and clean up Migo-vpc-1 and Migo-vpc-2.
 
-./vpcctl create vpc1 10.0.0.0/16
+---
 
-## Step 2: Add Subnets
+## 1. Create VPCs
 
-./vpcctl add-subnet vpc1 public 10.0.1.0/24 public
-./vpcctl add-subnet vpc1 private 10.0.2.0/24 private
+python3 vpcctl.py create
+Expected Output:
 
-## Step 3: Test Connectivity
+- Creation of Migo-vpc-1 and Migo-vpc-2 bridges
 
-sudo ip netns exec vpc1-public ping -c 2 10.0.2.2
+- Namespaces for public and private subnets
 
-## Step 4: Deploy a Simple Web Server
+- NAT enabled for public subnets
 
-sudo ip netns exec vpc1-public python3 -m http.server 80 &
+*Screenshot: Show ip link and ip netns list to confirm bridges and namespaces.*
 
-## Step 5: Test Access
+## 2. Peer VPCs
 
-curl 10.0.1.2
+python3 vpcctl.py peer
+Expected Output:
+
+- Peering link created between Migo-vpc-1 and Migo-vpc-2
+
+- NAT rules exclude peering traffic
+
+*Screenshot: Show successful ping from Migo-vpc-1 public subnet to Migo-vpc-2 public subnet.*
+
+## 3. Start Demo HTTP Server
+
+python3 vpcctl.py start-server
+Test Connectivity:
+
+sudo ip netns exec Migo-vpc-1-public curl 10.0.1.2
+sudo ip netns exec Migo-vpc-2-public curl 10.1.1.2
+
+*Screenshot: Show HTTP server responses for both VPCs.*
+
+## 4. Stop Demo HTTP Server
+
+python3 vpcctl.py stop-server
+
+*Screenshot: Show ps aux | grep python3 has no running servers.*
+
+## 5. Cleanup All Resources
+
+python3 vpcctl.py cleanup
+Expected Output:
+
+- All bridges, namespaces, and veths removed
+
+- NAT rules flushed
+
+*Screenshot: Show ip netns list is empty and ip link only has host interfaces.*
