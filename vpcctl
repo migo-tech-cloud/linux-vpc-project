@@ -1,58 +1,38 @@
 #!/usr/bin/env python3
-import argparse
-import os
+import subprocess
+import sys
 
-# Base directory for bash scripts
-SCRIPT_DIR = os.path.join(os.path.dirname(__file__), "scripts")
+def run_script(script_name, vpc_name, host_if):
+    print(f"\n🔹 Running: bash scripts/{script_name} {vpc_name} {host_if}\n")
+    subprocess.run(['bash', f'scripts/{script_name}', vpc_name, host_if], check=True)
 
-def run_script(script_name, *args):
-    script_path = os.path.join(SCRIPT_DIR, script_name)
-    cmd = f"bash {script_path} {' '.join(args)}"
-    print(f"\n🔹 Running: {cmd}\n")
-    os.system(cmd)
+def create_vpcs(host_if='enX0'):
+    print("🚀 Creating Migo-vpc-1 and Migo-vpc-2...\n")
+    run_script('create_vpc1.sh', 'Migo-vpc-1', host_if)
+    run_script('create_vpc2.sh', 'Migo-vpc-2', host_if)
+    print("\n✅ Both VPCs created successfully!")
+
+def cleanup_vpcs():
+    print("🧹 Cleaning up all VPCs...")
+    subprocess.run(['bash', 'scripts/cleanup.sh'], check=True)
+    print("✅ Cleanup complete!")
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Migo VPC Control CLI — manage and demo Migo-vpc-1 & Migo-vpc-2 with peering and NAT"
-    )
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    if len(sys.argv) < 2:
+        print("Usage: python3 vpcctl.py <command>")
+        print("Commands: create, cleanup")
+        sys.exit(1)
 
-    # Create both VPCs
-    subparsers.add_parser("create", help="Create both Migo-vpc-1 and Migo-vpc-2")
-
-    # Peer them
-    subparsers.add_parser("peer", help="Peer Migo-vpc-1 and Migo-vpc-2 together")
-
-    # Start/stop HTTP demo server
-    start_srv = subparsers.add_parser("start-server", help="Run HTTP server in Migo-vpc-1 public subnet")
-    stop_srv = subparsers.add_parser("stop-server", help="Stop all HTTP servers")
-
-    # Cleanup
-    subparsers.add_parser("cleanup", help="Clean up all Migo VPC components")
-
-    args = parser.parse_args()
-
-    if args.command == "create":
-        print("🚀 Creating Migo-vpc-1 and Migo-vpc-2...")
-        run_script("create_vpc1.sh", "Migo-vpc-1", "enX0")
-        run_script("create_vpc2.sh", "Migo-vpc-2", "enX0")
-
-    elif args.command == "peer":
-        print("🤝 Peering Migo-vpc-1 and Migo-vpc-2...")
-        run_script("peer_vpcs.sh", "Migo-vpc-1", "Migo-vpc-2")
-
-    elif args.command == "start-server":
-        run_script("start_server.sh", "Migo-vpc-1", "public")
-
-    elif args.command == "stop-server":
-        run_script("stop_server.sh")
-
-    elif args.command == "cleanup":
-        run_script("cleanup.sh")
-
+    cmd = sys.argv[1].lower()
+    if cmd == 'create':
+        create_vpcs()
+    elif cmd == 'cleanup':
+        cleanup_vpcs()
     else:
-        parser.print_help()
+        print(f"Unknown command: {cmd}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
+
 
