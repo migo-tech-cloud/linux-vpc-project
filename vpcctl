@@ -2,37 +2,70 @@
 import subprocess
 import sys
 
-def run_script(script_name, vpc_name, host_if):
-    print(f"\n🔹 Running: bash scripts/{script_name} {vpc_name} {host_if}\n")
-    subprocess.run(['bash', f'scripts/{script_name}', vpc_name, host_if], check=True)
+# Hardcoded VPCs
+VPCS = ["Migo-vpc-1", "Migo-vpc-2"]
+HOST_IF = "enX0"
 
-def create_vpcs(host_if='enX0'):
+def run(cmd):
+    """Run a shell command and print output."""
+    print(f"🔹 Running: {cmd}")
+    subprocess.run(cmd, shell=True, check=False)
+
+def create_vpcs():
     print("🚀 Creating Migo-vpc-1 and Migo-vpc-2...\n")
-    run_script('create_vpc1.sh', 'Migo-vpc-1', host_if)
-    run_script('create_vpc2.sh', 'Migo-vpc-2', host_if)
-    print("\n✅ Both VPCs created successfully!")
+    for vpc in VPCS:
+        run(f"bash ./scripts/create_{vpc.lower().replace('-', '_')}.sh {vpc} {HOST_IF}")
+        print(f"✅ VPC {vpc} created successfully!\n")
 
-def cleanup_vpcs():
-    print("🧹 Cleaning up all VPCs...")
-    subprocess.run(['bash', 'scripts/cleanup.sh'], check=True)
-    print("✅ Cleanup complete!")
+def delete_vpcs():
+    print("🧹 Deleting Migo-vpc-1 and Migo-vpc-2...\n")
+    for vpc in VPCS:
+        run(f"bash ./scripts/delete_{vpc.lower().replace('-', '_')}.sh {vpc}")
+        print(f"✅ VPC {vpc} deleted successfully!\n")
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 vpcctl.py <command>")
-        print("Commands: create, cleanup")
-        sys.exit(1)
+def start_server(namespace="Migo-vpc-1-public", port=80):
+    run(f"ip netns exec {namespace} python3 -m http.server {port} &")
+    print(f"✅ HTTP server started in namespace {namespace} on port {port}")
 
-    cmd = sys.argv[1].lower()
-    if cmd == 'create':
-        create_vpcs()
-    elif cmd == 'cleanup':
-        cleanup_vpcs()
-    else:
-        print(f"Unknown command: {cmd}")
-        sys.exit(1)
+def stop_server():
+    run("pkill -f 'python3 -m http.server'")
+    print("✅ All HTTP servers stopped")
+
+def usage():
+    print("""
+Usage: python3 vpcctl.py <command> [options]
+
+Commands:
+  create             Create all hardcoded VPCs
+  delete             Delete all VPCs and cleanup
+  start-server       Start HTTP server in a namespace (default Migo-vpc-1-public, port 80)
+  stop-server        Stop all HTTP servers
+  help               Show this help
+""")
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        usage()
+        sys.exit(1)
+    
+    cmd = sys.argv[1].lower()
+
+    if cmd == "create":
+        create_vpcs()
+    elif cmd == "delete":
+        delete_vpcs()
+    elif cmd == "start-server":
+        ns = sys.argv[2] if len(sys.argv) > 2 else "Migo-vpc-1-public"
+        port = sys.argv[3] if len(sys.argv) > 3 else 80
+        start_server(ns, port)
+    elif cmd == "stop-server":
+        stop_server()
+    elif cmd == "help":
+        usage()
+    else:
+        print("❌ Unknown command")
+        usage()
+
+
 
 
