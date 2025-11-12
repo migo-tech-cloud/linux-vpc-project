@@ -1,12 +1,11 @@
 #!/bin/bash
 # ============================================================
-# create_vpc1.sh — Manually rebuild VPC1 on Linux
-# Author: Owajimimin John
-# Purpose: Recreate the VPC environment automatically
+# create_vpc1.sh — Rebuild VPC1 on Linux
+# Author: Owajimimin
 # ============================================================
 
-set -e  # stop on error
-set -u  # fail if using unset variable
+set -e
+set -u
 
 # --- CONFIGURATION ---
 VPC_NAME="vpc1"
@@ -16,13 +15,14 @@ PRIVATE_NS="${VPC_NAME}-private"
 BRIDGE_IP="10.0.0.1/16"
 PUB_SUBNET_IP="10.0.1.2/24"
 PRIV_SUBNET_IP="10.0.2.2/24"
+HOST_IF="enX0"   # Change this to your host's main network interface
 
 echo "============================================================"
 echo "🛠️  Creating VPC: ${VPC_NAME}"
 echo "============================================================"
 
 # --- CLEANUP OLD RESOURCES IF EXIST ---
-echo "🔹 Cleaning old resources (if any)..."
+echo "🔹 Cleaning old resources..."
 sudo ip netns del ${PUBLIC_NS} 2>/dev/null || true
 sudo ip netns del ${PRIVATE_NS} 2>/dev/null || true
 sudo ip link del ${BRIDGE_NAME} 2>/dev/null || true
@@ -46,7 +46,7 @@ sudo ip link add veth-pub type veth peer name veth-pub-br
 sudo ip link add veth-priv type veth peer name veth-priv-br
 
 # --- ATTACH INTERFACES ---
-echo "🔹 Attaching veth interfaces to namespaces and bridge..."
+echo "🔹 Attaching veth interfaces..."
 sudo ip link set veth-pub netns ${PUBLIC_NS}
 sudo ip link set veth-priv netns ${PRIVATE_NS}
 sudo ip link set veth-pub-br master ${BRIDGE_NAME}
@@ -62,19 +62,29 @@ sudo ip -n ${PRIVATE_NS} addr add ${PRIV_SUBNET_IP} dev veth-priv
 sudo ip -n ${PUBLIC_NS} link set veth-pub up
 sudo ip -n ${PRIVATE_NS} link set veth-priv up
 
-# --- ADD DEFAULT ROUTES ---
-echo "🔹 Adding default routes..."
-sudo ip -n ${PUBLIC_NS} route add default via 10.0.0.1 || echo "⚠️ Route may already exist"
-sudo ip -n ${PRIVATE_NS} route add default via 10.0.0.1 || echo "⚠️ Route may already exist"
+# --- ENSURE BRIDGE IS UP BEFORE ROUTES ---
+echo "🔹 Ensuring ${BRIDGE_NAME} is reachable..."
+sleep 1
+sudo ip link set ${BRIDGE_NAME} up
+
+# --- ADD DEFAULT ROUTES SAFELY ---
+echo "🔹 Adding default routes safely..."
+if ! sudo ip -n ${PUBLIC_NS} route show | grep -q "default via 10.0.0.1"; then
+  sudo ip -n ${PUBLIC_NS} route add default via 10.0.0.1 dev veth-pub || true
+fi
+
+if ! sudo ip -n ${PRIVATE_NS} route show | grep -q "default via 10.0.0.1"; then
+  sudo ip -n ${PRIVATE_NS} route add default via 10.0.0.1 dev veth-priv || true
+fi
 
 # --- ENABLE IP FORWARDING ---
-echo "🔹 Enabling IP forwarding on the host..."
+echo "🔹 Enabling IP forwarding..."
 echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward > /dev/null
 
-# --- SET UP NAT FOR PUBLIC SUBNET ---
-HOST_IF="eth0"  # default network interface on EC2
-echo "🔹 Setting up NAT for ${PUBLIC_NS} on ${HOST_IF}"
-sudo iptables -t nat -A POSTROUTING -s 10.0.1.0/24 -o ${HOST_IF} -j MASQUERADE
+# --- SET UP NAT (exclude peering traffic if needed later) ---
+echo "🔹 Setting up NAT on ${HOST_IF}"
+sudo iptables -t nat -C POSTROUTING -s 10.0.1.0/24 -o ${HOST_IF} -j MASQUERADE 2>/dev/null \
+  || sudo iptables -t nat -A POSTROUTING -s 10.0.1.0/24 -o ${HOST_IF} -j MASQUERADE
 
 # --- DISPLAY RESULT ---
 echo "============================================================"
@@ -82,11 +92,10 @@ echo "✅ VPC ${VPC_NAME} successfully created!"
 echo "Bridge IP: ${BRIDGE_IP}"
 echo "Public Subnet IP: ${PUB_SUBNET_IP}"
 echo "Private Subnet IP: ${PRIV_SUBNET_IP}"
+echo "Host Interface: ${HOST_IF}"
 echo "============================================================"
 
-# --- TEST COMMANDS (optional manual verification) ---
-echo "You can verify setup with:"
+echo "🔹 Verify with:"
 echo "  sudo ip netns exec ${PUBLIC_NS} ping -c 2 10.0.2.2"
-echo "  sudo ip netns exec ${PRIVATE_NS} ping -c 2 10.0.1.2"
 echo "  sudo ip netns exec ${PUBLIC_NS} ping -c 2 8.8.8.8"
 echo "============================================================"
