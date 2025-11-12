@@ -1,128 +1,96 @@
 #!/usr/bin/env python3
-import os
-import sys
 import subprocess
-import datetime
+import sys
 import logging
 
-# -----------------------------------------------------------------------------
-# CONFIGURATION
-# -----------------------------------------------------------------------------
-LOG_DIR = "logs"
-LOG_FILE = os.path.join(LOG_DIR, "vpcctl.log")
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+# Hardcoded VPCs
 VPCS = [
-    {"name": "Migo-vpc-1", "script": "scripts/create_vpc1.sh"},
-    {"name": "Migo-vpc-2", "script": "scripts/create_vpc2.sh"},
+    {"name": "Migo-vpc-1", "script": "scripts/create_vpc_1.sh"},
+    {"name": "Migo-vpc-2", "script": "scripts/create_vpc_2.sh"},
 ]
-HOST_INTERFACE = "enX0"
 
-# -----------------------------------------------------------------------------
-# LOGGING SETUP
-# -----------------------------------------------------------------------------
-def setup_logging():
-    os.makedirs(LOG_DIR, exist_ok=True)
-    logger = logging.getLogger("vpcctl")
-    logger.setLevel(logging.INFO)
+HOST_INTERFACE = "enX0"  # Replace with actual host interface
 
-    # Formatter
-    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+def run_command(cmd):
+    logging.info(f"🔹 Running command: {cmd}")
+    try:
+        subprocess.run(cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"❌ Command failed with exit code {e.returncode}")
 
-    # File handler
-    fh = logging.FileHandler(LOG_FILE)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
-
-    # Console handler
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-
-    return logger
-
-
-logger = setup_logging()
-
-# -----------------------------------------------------------------------------
-# HELPER: Run shell commands with live output
-# -----------------------------------------------------------------------------
-def run_command(command, cwd=None):
-    logger.info(f"🔹 Running command: {command}")
-    process = subprocess.Popen(
-        command, shell=True, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-    )
-    for line in process.stdout:
-        logger.info(line.strip())
-    process.wait()
-    if process.returncode == 0:
-        logger.info("✅ Command completed successfully.")
-    else:
-        logger.error(f"❌ Command failed with exit code {process.returncode}")
-    return process.returncode
-
-# -----------------------------------------------------------------------------
-# CORE COMMANDS
-# -----------------------------------------------------------------------------
 def create_vpcs():
-    logger.info("🚀 Starting VPC creation process...")
+    logging.info("🚀 Starting VPC creation process...")
     for vpc in VPCS:
-        logger.info(f"Creating {vpc['name']} using {vpc['script']}")
+        logging.info(f"Creating {vpc['name']} using {vpc['script']}")
         run_command(f"bash {vpc['script']} {vpc['name']} {HOST_INTERFACE}")
-    logger.info("✅ All VPCs created successfully!\n")
+    logging.info("✅ All VPCs created successfully!")
 
 def delete_vpcs():
-    logger.info("🧹 Cleaning up all VPCs...")
-    run_command("bash scripts/delete_vpcs.sh")
-    logger.info("✅ Cleanup completed.\n")
+    logging.info("🧹 Cleaning up all VPCs...")
+    for vpc in VPCS:
+        logging.info(f"🔹 Deleting VPC: {vpc['name']}")
+        # Remove namespaces
+        for ns_type in ["public", "private"]:
+            ns = f"{vpc['name']}-{ns_type}"
+            run_command(f"sudo ip netns delete {ns}")
+        # Remove bridge
+        br = f"{vpc['name']}-br0"
+        run_command(f"sudo ip link set {br} down")
+        run_command(f"sudo ip link delete {br} type bridge")
+    # Flush NAT rules
+    run_command(f"sudo iptables -t nat -F")
+    logging.info("✅ Cleanup completed. All VPCs removed.")
 
 def start_server():
-    logger.info("🚀 Starting HTTP server inside Migo-vpc-1-public namespace...")
-    run_command("bash scripts/start_server.sh")
-    logger.info("✅ Server started.\n")
+    ns = f"{VPCS[0]['name']}-public"
+    logging.info(f"Starting HTTP server in namespace {ns} on port 80")
+    run_command(f"sudo ip netns exec {ns} python3 -m http.server 80 &")
 
 def stop_server():
-    logger.info("🛑 Stopping all HTTP servers...")
-    run_command("bash scripts/stop_server.sh")
-    logger.info("✅ All servers stopped.\n")
+    logging.info("Stopping all HTTP servers")
+    run_command("pkill -f 'python3 -m http.server' || true")
 
-def show_help():
+def print_help():
     print("""
 Usage: python3 vpcctl.py <command> [options]
 
 Commands:
-  create             Create all hardcoded VPCs (Migo-vpc-1 and Migo-vpc-2)
-  delete             Delete all VPCs and cleanup
-  start-server       Start HTTP server in Migo-vpc-1-public namespace
-  stop-server        Stop all HTTP servers
-  help               Show this help
-
-Examples:
-  python3 vpcctl.py create | tee -a logs/vpcctl.log
-  python3 vpcctl.py delete
+  create       Create all hardcoded VPCs
+  delete       Delete all VPCs and cleanup
+  start-server Start HTTP server in first public subnet (port 80)
+  stop-server  Stop all HTTP servers
+  help         Show this help
 """)
 
-# -----------------------------------------------------------------------------
-# MAIN ENTRY
-# -----------------------------------------------------------------------------
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        show_help()
+        print_help()
         sys.exit(1)
 
-    command = sys.argv[1].lower()
+    cmd = sys.argv[1].lower()
 
-    if command == "create":
+    if cmd == "create":
         create_vpcs()
-    elif command == "delete":
+    elif cmd == "delete":
         delete_vpcs()
-    elif command == "start-server":
+    elif cmd == "start-server":
         start_server()
-    elif command == "stop-server":
+    elif cmd == "stop-server":
         stop_server()
-    elif command == "help":
-        show_help()
+    elif cmd == "help":
+        print_help()
     else:
-        print(f"❌ Unknown command: {command}")
-        show_help()
+        logging.error(f"Unknown command: {cmd}")
+        print_help()
+
+
 
 
 
