@@ -1,70 +1,133 @@
 #!/usr/bin/env python3
-import subprocess
+import os
 import sys
+import subprocess
+import datetime
+import logging
 
-# Hardcoded VPCs
-VPCS = ["Migo-vpc-1", "Migo-vpc-2"]
-HOST_IF = "enX0"
+# -----------------------------------------------------------------------------
+# CONFIGURATION
+# -----------------------------------------------------------------------------
+LOG_DIR = "logs"
+LOG_FILE = os.path.join(LOG_DIR, "vpcctl.log")
+VPCS = [
+    {"name": "Migo-vpc-1", "script": "scripts/create_vpc1.sh"},
+    {"name": "Migo-vpc-2", "script": "scripts/create_vpc2.sh"},
+]
+HOST_INTERFACE = "enX0"
 
-def run(cmd):
-    """Run a shell command and print output."""
-    print(f"🔹 Running: {cmd}")
-    subprocess.run(cmd, shell=True, check=False)
+# -----------------------------------------------------------------------------
+# LOGGING SETUP
+# -----------------------------------------------------------------------------
+def setup_logging():
+    os.makedirs(LOG_DIR, exist_ok=True)
+    logger = logging.getLogger("vpcctl")
+    logger.setLevel(logging.INFO)
 
+    # Formatter
+    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+
+    # File handler
+    fh = logging.FileHandler(LOG_FILE)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+    # Console handler
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    return logger
+
+
+logger = setup_logging()
+
+# -----------------------------------------------------------------------------
+# HELPER: Run shell commands with live output
+# -----------------------------------------------------------------------------
+def run_command(command, cwd=None):
+    logger.info(f"🔹 Running command: {command}")
+    process = subprocess.Popen(
+        command, shell=True, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+    for line in process.stdout:
+        logger.info(line.strip())
+    process.wait()
+    if process.returncode == 0:
+        logger.info("✅ Command completed successfully.")
+    else:
+        logger.error(f"❌ Command failed with exit code {process.returncode}")
+    return process.returncode
+
+# -----------------------------------------------------------------------------
+# CORE COMMANDS
+# -----------------------------------------------------------------------------
 def create_vpcs():
-    print("🚀 Creating Migo-vpc-1 and Migo-vpc-2...\n")
+    logger.info("🚀 Starting VPC creation process...")
     for vpc in VPCS:
-        run(f"bash ./scripts/create_{vpc.lower().replace('-', '_')}.sh {vpc} {HOST_IF}")
-        print(f"✅ VPC {vpc} created successfully!\n")
+        logger.info(f"Creating {vpc['name']} using {vpc['script']}")
+        run_command(f"bash {vpc['script']} {vpc['name']} {HOST_INTERFACE}")
+    logger.info("✅ All VPCs created successfully!\n")
 
 def delete_vpcs():
-    print("🧹 Deleting Migo-vpc-1 and Migo-vpc-2...\n")
-    for vpc in VPCS:
-        run(f"bash ./scripts/delete_{vpc.lower().replace('-', '_')}.sh {vpc}")
-        print(f"✅ VPC {vpc} deleted successfully!\n")
+    logger.info("🧹 Cleaning up all VPCs...")
+    run_command("bash scripts/delete_vpcs.sh")
+    logger.info("✅ Cleanup completed.\n")
 
-def start_server(namespace="Migo-vpc-1-public", port=80):
-    run(f"ip netns exec {namespace} python3 -m http.server {port} &")
-    print(f"✅ HTTP server started in namespace {namespace} on port {port}")
+def start_server():
+    logger.info("🚀 Starting HTTP server inside Migo-vpc-1-public namespace...")
+    run_command("bash scripts/start_server.sh")
+    logger.info("✅ Server started.\n")
 
 def stop_server():
-    run("pkill -f 'python3 -m http.server'")
-    print("✅ All HTTP servers stopped")
+    logger.info("🛑 Stopping all HTTP servers...")
+    run_command("bash scripts/stop_server.sh")
+    logger.info("✅ All servers stopped.\n")
 
-def usage():
+def show_help():
     print("""
 Usage: python3 vpcctl.py <command> [options]
 
 Commands:
-  create             Create all hardcoded VPCs
+  create             Create all hardcoded VPCs (Migo-vpc-1 and Migo-vpc-2)
   delete             Delete all VPCs and cleanup
-  start-server       Start HTTP server in a namespace (default Migo-vpc-1-public, port 80)
+  start-server       Start HTTP server in Migo-vpc-1-public namespace
   stop-server        Stop all HTTP servers
   help               Show this help
+
+Examples:
+  python3 vpcctl.py create | tee -a logs/vpcctl.log
+  python3 vpcctl.py delete
 """)
 
+# -----------------------------------------------------------------------------
+# MAIN ENTRY
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        usage()
+        show_help()
         sys.exit(1)
-    
-    cmd = sys.argv[1].lower()
 
-    if cmd == "create":
+    command = sys.argv[1].lower()
+
+    if command == "create":
         create_vpcs()
-    elif cmd == "delete":
+    elif command == "delete":
         delete_vpcs()
-    elif cmd == "start-server":
-        ns = sys.argv[2] if len(sys.argv) > 2 else "Migo-vpc-1-public"
-        port = sys.argv[3] if len(sys.argv) > 3 else 80
-        start_server(ns, port)
-    elif cmd == "stop-server":
+    elif command == "start-server":
+        start_server()
+    elif command == "stop-server":
         stop_server()
-    elif cmd == "help":
-        usage()
+    elif command == "help":
+        show_help()
     else:
-        print("❌ Unknown command")
-        usage()
+        print(f"❌ Unknown command: {command}")
+        show_help()
+
+
+
+
+
 
 
 

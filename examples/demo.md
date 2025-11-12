@@ -4,53 +4,50 @@ This document demonstrates how to use the `vpcctl` CLI to create, peer, test, an
 
 ---
 
-## 1. Create VPCs
+## Step-by-Step Demo
 
-python3 vpcctl.py create
-Expected Output:
+1. **Setup**
 
-- Creation of Migo-vpc-1 and Migo-vpc-2 bridges
+   chmod +x scripts/*.sh
+   python3 vpcctl create
+   
+✅ Screenshot: Show Migo-vpc-1 and Migo-vpc-2 creation output.
 
-- Namespaces for public and private subnets
+Apply firewall rules
 
-- NAT enabled for public subnets
+bash
+Copy code
+python3 vpcctl firewall
+✅ Screenshot: Show firewall rules applied inside namespaces.
 
-*Screenshot: Show ip link and ip netns list to confirm bridges and namespaces.*
+Start HTTP server
 
-## 2. Peer VPCs
+bash
+Copy code
+python3 vpcctl start-server
+✅ Screenshot: Show server running in Migo-vpc-1-public.
 
-python3 vpcctl.py peer
-Expected Output:
+Test connectivity
 
-- Peering link created between Migo-vpc-1 and Migo-vpc-2
+bash
+Copy code
+sudo ip netns exec Migo-vpc-1-public ping 10.0.2.2    # Intra-VPC
+sudo ip netns exec Migo-vpc-1-public ping 8.8.8.8     # Internet
+sudo ip netns exec Migo-vpc-1-private ping 8.8.8.8    # Should fail
+✅ Screenshot: Show ping results.
 
-- NAT rules exclude peering traffic
+Peering
 
-*Screenshot: Show successful ping from Migo-vpc-1 public subnet to Migo-vpc-2 public subnet.*
+bash
+Copy code
+python3 vpcctl peer
+sudo ip netns exec Migo-vpc-1-public ping 10.1.1.2
+✅ Screenshot: Show successful cross-VPC communication.
 
-## 3. Start Demo HTTP Server
+Stop servers and cleanup
 
-python3 vpcctl.py start-server
-Test Connectivity:
-
-sudo ip netns exec Migo-vpc-1-public curl 10.0.1.2
-sudo ip netns exec Migo-vpc-2-public curl 10.1.1.2
-
-*Screenshot: Show HTTP server responses for both VPCs.*
-
-## 4. Stop Demo HTTP Server
-
-python3 vpcctl.py stop-server
-
-*Screenshot: Show ps aux | grep python3 has no running servers.*
-
-## 5. Cleanup All Resources
-
-python3 vpcctl.py cleanup
-Expected Output:
-
-- All bridges, namespaces, and veths removed
-
-- NAT rules flushed
-
-*Screenshot: Show ip netns list is empty and ip link only has host interfaces.*
+bash
+Copy code
+python3 vpcctl stop-server
+python3 vpcctl unpeer
+python3 vpcctl delete

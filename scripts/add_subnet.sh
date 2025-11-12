@@ -1,36 +1,33 @@
-
----
-
-## **4️⃣ `add_subnet.sh`** (optional helper script)
-```bash
 #!/bin/bash
-# Usage: ./add_subnet.sh <vpc_name> <subnet_name> <subnet_cidr>
-VPC=$1
+# Usage: bash add_subnet.sh <VPC_NAME> <SUBNET_NAME> <CIDR>
+# Example: bash add_subnet.sh Migo-vpc-1 public 10.0.3.2/16
+
+VPC_NAME=$1
 SUBNET=$2
 CIDR=$3
-BRIDGE="${VPC}-br0"
-NS="${VPC}-${SUBNET}"
-VETH="${SUBNET}-veth"
-VETH_BR="${SUBNET}-veth-br"
 
-echo "🔹 Adding subnet $SUBNET ($CIDR) to $VPC"
+NS_NAME="${VPC_NAME}-${SUBNET}"
+VETH_NS="veth-${SUBNET}"
+VETH_BR="veth-${SUBNET}-br"
+
+echo "🔹 Adding subnet: $NS_NAME"
 
 # Create namespace
-sudo ip netns add $NS
+ip netns add $NS_NAME
 
-# Create veth pair
-sudo ip link add $VETH type veth peer name $VETH_BR
-sudo ip link set $VETH netns $NS
-sudo ip link set $VETH_BR master $BRIDGE
-sudo ip link set $VETH_BR up
+# Create veth pair and connect to bridge
+ip link add $VETH_NS type veth peer name $VETH_BR
+ip link set $VETH_NS netns $NS_NAME
+ip link set $VETH_BR master ${VPC_NAME}-br0
+ip link set $VETH_BR up
 
-# Assign IP and bring up
-sudo ip -n $NS addr add $CIDR dev $VETH
-sudo ip -n $NS link set $VETH up
+# Assign IP and bring up namespace interface
+ip -n $NS_NAME addr add $CIDR dev $VETH_NS
+ip -n $NS_NAME link set $VETH_NS up
 
 # Add default route via bridge
-BR_IP=$(ip addr show $BRIDGE | grep -oP 'inet \K[\d.]+')
-sudo ip -n $NS route add default via $BR_IP
+ip -n $NS_NAME route add default via $(echo $CIDR | cut -d"." -f1-2).0.1 2>/dev/null
 
-echo "✅ Subnet $SUBNET added to $VPC"
+echo "✅ Subnet $NS_NAME added successfully!"
+
 

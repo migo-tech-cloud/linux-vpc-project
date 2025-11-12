@@ -1,51 +1,63 @@
-## **3️⃣ `runbook.md`**
+### **2️⃣ runbook.md**
 ```markdown
-# Linux VPC Project Runbook
+# Linux VPC Project - Runbook
 
-## Purpose:
-Guide for setup, testing, troubleshooting, and cleanup of Migo VPCs.
+## Purpose
+Provides operational guidance, troubleshooting steps, and cleanup instructions.
 
 ---
 
-## 1. Setup
-1. SSH into your EC2 instance (via MobaXterm)
-2. Clone the repository:
+## Pre-Requisites
+- Linux host (Ubuntu recommended)
+- Python 3
+- `ip`, `iptables`, `bridge` utilities
+- `jq` for parsing JSON policies
 
-git clone https://github.com/<your-username>/linux-vpc-project.git
-cd linux-vpc-project
-3. Ensure scripts are executable:
+---
 
-chmod +x scripts/*.sh
-## 2. Running the Demo
-1. Create VPCs:
+## Common Commands
 
-python3 vpcctl.py create
-2. Peer VPCs:
+### 1. Check namespaces
+```bash
+ip netns list
+2. Check bridges
+bash
+Copy code
+ip link show type bridge
+3. Check routes
+bash
+Copy code
+ip netns exec Migo-vpc-1-public ip route
+4. Check iptables rules
+bash
+Copy code
+ip netns exec Migo-vpc-1-public iptables -L -n
+Troubleshooting
+Issue	Solution
+Nexthop invalid gateway	Ensure bridge IP is in the same subnet as namespace IP.
+Cannot find veth device	Ensure create scripts ran successfully; check namespace names.
+HTTP server not reachable	Check firewall rules and namespace IPs.
 
-python3 vpcctl.py peer
-3. Start demo HTTP server:
+Cleanup Steps
+Stop servers
 
-python3 vpcctl.py start-server
+bash
+Copy code
+python3 vpcctl.py stop-server
+Remove peering
 
-4. Verify connectivity between subnets and NAT.
+bash
+Copy code
+python3 vpcctl.py unpeer
+Delete VPCs
 
-## 3. Troubleshooting
-- Error: Nexthop has invalid gateway → Ensure veths and bridge IPs match subnet CIDR.
+bash
+Copy code
+python3 vpcctl.py delete
+Logging
+All actions from vpcctl.py are printed to stdout. Redirect to a file if needed:
 
-- Ping fails between namespaces → Check link states: ip link & ip netns exec <ns> ip addr.
-
-- HTTP server not reachable → Ensure IP assigned inside namespace and server running.
-
-## 4. Cleanup
-
-python3 vpcctl.py cleanup
-Confirms all namespaces, bridges, veths, and NAT rules are removed.
-
-## 5. Notes
-- Hardcoded VPC names: Migo-vpc-1 and Migo-vpc-2
-
-- Host interface: enX0
-
-- Screenshots recommended after creation, peering, server start, and cleanup.
-
+bash
+Copy code
+python3 vpcctl.py create | tee create.log
 

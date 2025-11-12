@@ -11,51 +11,114 @@ Owajimimin John — DevOps Intern
 ```markdown
 # Linux VPC Project
 
-**Overview:**
-This project simulates a Virtual Private Cloud (VPC) on a single Linux host using network namespaces, veth pairs, bridges, routing, and iptables. You can create multiple VPCs, public/private subnets, NAT gateways, and VPC peering.
+## Overview
+This project recreates a Virtual Private Cloud (VPC) on a single Linux host using network namespaces, veth pairs, bridges, routing tables, and iptables. It simulates:
 
-**Features:**
-- Create multiple VPCs with unique CIDRs
 - Public and private subnets
-- NAT gateway for public subnets
+- Routing between subnets
+- NAT gateway for internet access
 - VPC isolation and peering
-- Firewall rules (Security Groups)
-- Easy automation via `vpcctl.py`
+- Security group-like firewall rules
 
-**Usage:**
+All VPC operations are automated using the `vpcctl.py` CLI tool.
+
+---
+
+## Architecture
+Host Interface (enX0)
+│
+Linux Bridge (Migo-vpc-1-br0 / Migo-vpc-2-br0)
+┌───────────────┐
+│ │
+Public NS Private NS
+10.0.1.2/24 10.0.2.2/24
+
+yaml
+Copy code
+
+---
+
+## Project Structure
+vpc-project/
+├── vpcctl.py
+├── config/
+│ └── policies.json # Firewall rules
+├── scripts/
+│ ├── create_migo_vpc_1.sh
+│ ├── create_migo_vpc_2.sh
+│ ├── delete_migo_vpc_1.sh
+│ ├── delete_migo_vpc_2.sh
+│ ├── peer_migo_vpcs.sh
+│ ├── unpeer_migo_vpcs.sh
+│ └── apply_firewall.sh
+├── examples/
+│ └── demo.md # Demo instructions
+├── README.md
+└── runbook.md
+
+yaml
+Copy code
+
+---
+
+## CLI Usage
+```bash
+# Make scripts executable
+chmod +x scripts/*.sh
 
 # Create VPCs
 python3 vpcctl.py create
 
-# Peer VPCs
-python3 vpcctl.py peer
+# Apply firewall/security group rules
+python3 vpcctl.py firewall
 
-# Start demo HTTP server in Migo-vpc-1 public subnet
+# Start HTTP server in default namespace (Migo-vpc-1-public)
 python3 vpcctl.py start-server
 
-# Stop demo HTTP servers
+# Stop all HTTP servers
 python3 vpcctl.py stop-server
 
-# Clean up all VPC resources
-python3 vpcctl.py cleanup
+# Establish VPC peering
+python3 vpcctl.py peer
 
-**Project Structure:**
+# Remove VPC peering
+python3 vpcctl.py unpeer
 
-vpc-project/
-├── vpcctl.py
-├── config/policies.json
-├── scripts/
-├── examples/demo.md
-├── README.md
-└── runbook.md
+# Delete all VPCs
+python3 vpcctl.py delete
+Testing & Validation
+Intra-VPC communication
 
-**Notes:**
+bash
+Copy code
+sudo ip netns exec Migo-vpc-1-public ping 10.0.2.2
+Public subnet outbound internet
 
-- Hardcoded VPC names: Migo-vpc-1 and Migo-vpc-2
+bash
+Copy code
+sudo ip netns exec Migo-vpc-1-public ping 8.8.8.8
+Private subnet isolation
 
-- Host interface in EC2: enX0
+bash
+Copy code
+sudo ip netns exec Migo-vpc-1-private ping 8.8.8.8   # Should fail
+Cross-VPC communication via peering
 
-- All actions are logged in the terminal
+bash
+Copy code
+python3 vpcctl.py peer
+sudo ip netns exec Migo-vpc-1-public ping 10.1.1.2
+Cleanup
+bash
+Copy code
+python3 vpcctl.py stop-server
+python3 vpcctl.py unpeer
+python3 vpcctl.py delete
+Notes
+VPC names are hardcoded: Migo-vpc-1 and Migo-vpc-2.
 
+Host interface should be updated in vpcctl.py if different from enX0.
+
+Firewall rules can be updated in config/policies.json.
 
 
