@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================
-# Create Virtual Private Cloud (VPC1) 
-# Author: Owajimimin John
+# Create Virtual Private Cloud (VPC1)
+# Fixed gateway and routing logic for enX0 host
 # ==============================================
 
 VPC_NAME="vpc1"
@@ -19,19 +19,18 @@ echo "🚀 Creating Virtual Private Cloud: ${VPC_NAME}"
 echo "============================================================"
 
 # --------------------------------------------------------------
-# 1️⃣ Clean up any previous configuration
+# Cleanup any old configs
 # --------------------------------------------------------------
-echo "🔹 Cleaning previous configs..."
 sudo ip netns del $PUBLIC_NS 2>/dev/null
 sudo ip netns del $PRIVATE_NS 2>/dev/null
 sudo ip link del $BRIDGE_NAME 2>/dev/null
 sudo ip link del veth-pub 2>/dev/null
-sudo ip link del veth-pub-br 2>/dev/null
 sudo ip link del veth-priv 2>/dev/null
+sudo ip link del veth-pub-br 2>/dev/null
 sudo ip link del veth-priv-br 2>/dev/null
 
 # --------------------------------------------------------------
-# 2️⃣ Create the VPC bridge
+# Create bridge and assign IP
 # --------------------------------------------------------------
 echo "🔹 Creating bridge ${BRIDGE_NAME}..."
 sudo ip link add $BRIDGE_NAME type bridge
@@ -39,59 +38,56 @@ sudo ip addr add $BRIDGE_IP dev $BRIDGE_NAME
 sudo ip link set $BRIDGE_NAME up
 
 # --------------------------------------------------------------
-# 3️⃣ Create network namespaces
+# Create namespaces
 # --------------------------------------------------------------
-echo "🔹 Creating namespaces..."
 sudo ip netns add $PUBLIC_NS
 sudo ip netns add $PRIVATE_NS
 
 # --------------------------------------------------------------
-# 4️⃣ Create veth pairs and connect them to bridge & namespaces
+# Create and connect veth pairs
 # --------------------------------------------------------------
-echo "🔹 Creating veth pairs..."
 sudo ip link add veth-pub type veth peer name veth-pub-br
 sudo ip link add veth-priv type veth peer name veth-priv-br
 
 sudo ip link set veth-pub netns $PUBLIC_NS
-sudo ip link set veth-pub-br master $BRIDGE_NAME
-
 sudo ip link set veth-priv netns $PRIVATE_NS
+
+sudo ip link set veth-pub-br master $BRIDGE_NAME
 sudo ip link set veth-priv-br master $BRIDGE_NAME
 
 sudo ip link set veth-pub-br up
 sudo ip link set veth-priv-br up
 
 # --------------------------------------------------------------
-# 5️⃣ Assign IP addresses and routes
+# Assign IPs inside namespaces
 # --------------------------------------------------------------
-echo "🔹 Configuring subnet interfaces..."
-sudo ip -n $PUBLIC_NS addr flush dev veth-pub 2>/dev/null
-sudo ip -n $PRIVATE_NS addr flush dev veth-priv 2>/dev/null
-
 sudo ip -n $PUBLIC_NS addr add $PUBLIC_IP dev veth-pub
 sudo ip -n $PRIVATE_NS addr add $PRIVATE_IP dev veth-priv
-
 sudo ip -n $PUBLIC_NS link set veth-pub up
 sudo ip -n $PRIVATE_NS link set veth-priv up
 
+# --------------------------------------------------------------
+# Manually set bridge as reachable (fix for Nexthop errors)
+# --------------------------------------------------------------
+sudo ip -n $PUBLIC_NS neigh add 10.0.0.1 lladdr $(ip link show $BRIDGE_NAME | awk '/link\/ether/ {print $2}') dev veth-pub
+sudo ip -n $PRIVATE_NS neigh add 10.0.0.1 lladdr $(ip link show $BRIDGE_NAME | awk '/link\/ether/ {print $2}') dev veth-priv
+
+# --------------------------------------------------------------
+# Add default routes
+# --------------------------------------------------------------
 echo "🔹 Adding default routes..."
-sudo ip -n $PUBLIC_NS route flush table main 2>/dev/null
-sudo ip -n $PRIVATE_NS route flush table main 2>/dev/null
 sudo ip -n $PUBLIC_NS route add default via 10.0.0.1
 sudo ip -n $PRIVATE_NS route add default via 10.0.0.1
 
 # --------------------------------------------------------------
-# 6️⃣ Enable IP forwarding & NAT for internet access
+# Enable forwarding and NAT
 # --------------------------------------------------------------
-echo "🔹 Enabling IP forwarding..."
 sudo sysctl -w net.ipv4.ip_forward=1 >/dev/null
-
-echo "🔹 Setting up NAT on ${HOST_IFACE}..."
 sudo iptables -t nat -D POSTROUTING -o $HOST_IFACE -j MASQUERADE 2>/dev/null
 sudo iptables -t nat -A POSTROUTING -o $HOST_IFACE -j MASQUERADE
 
 # --------------------------------------------------------------
-# ✅ Summary
+# Summary
 # --------------------------------------------------------------
 echo "============================================================"
 echo "✅ VPC ${VPC_NAME} successfully created!"
@@ -104,4 +100,5 @@ echo "🔹 Verify with:"
 echo "  sudo ip netns exec ${PUBLIC_NS} ping -c 2 ${PRIVATE_IP%%/*}"
 echo "  sudo ip netns exec ${PUBLIC_NS} ping -c 2 8.8.8.8"
 echo "============================================================"
+
 
