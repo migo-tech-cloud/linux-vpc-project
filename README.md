@@ -110,6 +110,6 @@ python3 vpcctl.py delete
 
 - Host interface should be updated in vpcctl.py if different from enX0.
 
-Firewall rules can be updated in config/policies.json.
+- Firewall rules can be updated in config/policies.json.
 
 
