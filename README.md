@@ -1,4 +1,4 @@
-## **2️⃣ `README.md`**
+## ** `README.md`**
 
 ## 🧠 Author
 
@@ -8,7 +8,6 @@ Owajimimin John — DevOps Intern
 
 ---
 
-```markdown
 # Linux VPC Project
 
 ## Overview
@@ -26,15 +25,12 @@ All VPC operations are automated using the `vpcctl.py` CLI tool.
 
 ## Architecture
 Host Interface (enX0)
-│
+        │
 Linux Bridge (Migo-vpc-1-br0 / Migo-vpc-2-br0)
 ┌───────────────┐
-│ │
-Public NS Private NS
+│               │
+Public-NS   Private-NS
 10.0.1.2/24 10.0.2.2/24
-
-yaml
-Copy code
 
 ---
 
@@ -46,23 +42,20 @@ vpc-project/
 ├── scripts/
 │ ├── create_migo_vpc_1.sh
 │ ├── create_migo_vpc_2.sh
-│ ├── delete_migo_vpc_1.sh
-│ ├── delete_migo_vpc_2.sh
-│ ├── peer_migo_vpcs.sh
-│ ├── unpeer_migo_vpcs.sh
+│ ├── delete_vpcs.sh
 │ └── apply_firewall.sh
+├──logs/
+| ├── create.log 
+│ └── cleanup.log
 ├── examples/
 │ └── demo.md # Demo instructions
 ├── README.md
 └── runbook.md
 
-yaml
-Copy code
-
 ---
 
 ## CLI Usage
-```bash
+
 # Make scripts executable
 chmod +x scripts/*.sh
 
@@ -86,38 +79,36 @@ python3 vpcctl.py unpeer
 
 # Delete all VPCs
 python3 vpcctl.py delete
-Testing & Validation
+
+## Testing & Validation
 Intra-VPC communication
 
-bash
-Copy code
 sudo ip netns exec Migo-vpc-1-public ping 10.0.2.2
 Public subnet outbound internet
 
-bash
-Copy code
 sudo ip netns exec Migo-vpc-1-public ping 8.8.8.8
 Private subnet isolation
 
-bash
-Copy code
 sudo ip netns exec Migo-vpc-1-private ping 8.8.8.8   # Should fail
 Cross-VPC communication via peering
 
-bash
-Copy code
 python3 vpcctl.py peer
 sudo ip netns exec Migo-vpc-1-public ping 10.1.1.2
-Cleanup
-bash
-Copy code
-python3 vpcctl.py stop-server
-python3 vpcctl.py unpeer
-python3 vpcctl.py delete
-Notes
-VPC names are hardcoded: Migo-vpc-1 and Migo-vpc-2.
 
-Host interface should be updated in vpcctl.py if different from enX0.
+## Cleanup
+
+python3 vpcctl.py stop-server
+
+python3 vpcctl.py unpeer
+
+python3 vpcctl.py delete
+
+---
+
+## Notes
+- VPC names are hardcoded: Migo-vpc-1 and Migo-vpc-2.
+
+- Host interface should be updated in vpcctl.py if different from enX0.
 
 Firewall rules can be updated in config/policies.json.
 
