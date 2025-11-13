@@ -1,47 +1,34 @@
 #!/bin/bash
-# scripts/delete_vpcs.sh
-# Final version for deleting all VPCs and cleaning up resources
+# Usage: ./delete_vpcs.sh
+# Fully cleans up all VPCs, bridges, namespaces, and NAT rules
 
-set -euo pipefail
+set -e
 
 VPCS=("Migo-vpc-1" "Migo-vpc-2")
 
-echo "🧹 Deleting all VPCs..."
+echo "🧹 Cleaning up all VPCs..."
 
 for VPC in "${VPCS[@]}"; do
+    PUB_NS="${VPC}-public"
+    PRIV_NS="${VPC}-private"
+    BRIDGE="${VPC}-br0"
+
     echo "🔹 Deleting VPC: $VPC"
 
-    # Delete public namespace if it exists
-    if ip netns list | grep -qw "${VPC}-public"; then
-        sudo ip netns delete "${VPC}-public"
-        echo "   ✅ Deleted namespace: ${VPC}-public"
-    else
-        echo "   ⚠️ Namespace ${VPC}-public does not exist, skipping."
-    fi
+    # Delete namespaces if they exist
+    sudo ip netns delete $PUB_NS 2>/dev/null || true
+    sudo ip netns delete $PRIV_NS 2>/dev/null || true
 
-    # Delete private namespace if it exists
-    if ip netns list | grep -qw "${VPC}-private"; then
-        sudo ip netns delete "${VPC}-private"
-        echo "   ✅ Deleted namespace: ${VPC}-private"
-    else
-        echo "   ⚠️ Namespace ${VPC}-private does not exist, skipping."
-    fi
-
-    # Delete bridge if it exists
-    if ip link show type bridge | grep -qw "${VPC}-br0"; then
-        sudo ip link set "${VPC}-br0" down
-        sudo ip link delete "${VPC}-br0" type bridge
-        echo "   ✅ Deleted bridge: ${VPC}-br0"
-    else
-        echo "   ⚠️ Bridge ${VPC}-br0 does not exist, skipping."
-    fi
+    # Bring bridge down and delete it if it exists
+    sudo ip link set $BRIDGE down 2>/dev/null || true
+    sudo ip link delete $BRIDGE type bridge 2>/dev/null || true
 done
 
-# Flush NAT table to remove MASQUERADE rules
+# Flush NAT rules
 sudo iptables -t nat -F
-echo "🔹 Flushed NAT table."
 
 echo "✅ Cleanup completed. All VPCs removed."
+
 
 
 
