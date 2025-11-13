@@ -1,5 +1,5 @@
-### **2️⃣ runbook.md**
-```markdown
+### ** runbook.md**
+
 # Linux VPC Project - Runbook
 
 ## Purpose
@@ -18,46 +18,43 @@ Provides operational guidance, troubleshooting steps, and cleanup instructions.
 ## Common Commands
 
 ### 1. Check namespaces
-```bash
+
 ip netns list
-2. Check bridges
-bash
-Copy code
+
+### 2. Check bridges
+
 ip link show type bridge
-3. Check routes
-bash
-Copy code
+
+### 3. Check routes
+
 ip netns exec Migo-vpc-1-public ip route
-4. Check iptables rules
-bash
-Copy code
+
+### 4. Check iptables rules
+
 ip netns exec Migo-vpc-1-public iptables -L -n
-Troubleshooting
-Issue	Solution
-Nexthop invalid gateway	Ensure bridge IP is in the same subnet as namespace IP.
-Cannot find veth device	Ensure create scripts ran successfully; check namespace names.
-HTTP server not reachable	Check firewall rules and namespace IPs.
 
-Cleanup Steps
-Stop servers
+## Troubleshooting
+Issue ================================================= Solution
+Nexthop invalid gateway =============================== Ensure bridge IP is in the same subnet as namespace IP.
+Cannot find veth device ===============================	Ensure create scripts ran successfully; check namespace names.
+HTTP server not reachable =============================	Check firewall rules and namespace IPs.
 
-bash
-Copy code
+## Cleanup Steps
+### Stop servers
+
 python3 vpcctl.py stop-server
-Remove peering
 
-bash
-Copy code
+### Remove peering
+
 python3 vpcctl.py unpeer
-Delete VPCs
 
-bash
-Copy code
+### Delete VPCs
+
 python3 vpcctl.py delete
-Logging
+
+### Logging
+
 All actions from vpcctl.py are printed to stdout. Redirect to a file if needed:
 
-bash
-Copy code
 python3 vpcctl.py create | tee create.log
 
