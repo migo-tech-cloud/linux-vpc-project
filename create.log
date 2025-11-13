@@ -1,0 +1,4 @@
+net.ipv4.ip_forward = 1
+✅ Migo-vpc-1 created successfully!
+net.ipv4.ip_forward = 1
+✅ Migo-vpc-2 created successfully!
