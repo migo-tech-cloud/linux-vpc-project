@@ -3,62 +3,67 @@ import subprocess
 import sys
 import logging
 
-# Configure logging
+# -------------------
+# Logging configuration
+# -------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
-logger = logging.getLogger()
 
-# Hardcoded VPCs
-VPCS = [
-    {"name": "Migo-vpc-1", "script": "scripts/create_vpc_1.sh"},
-    {"name": "Migo-vpc-2", "script": "scripts/create_vpc_2.sh"}
-]
-
-# Default host interface
+# -------------------
+# Constants
+# -------------------
 HOST_IFACE = "enX0"
+VPCS = ["Migo-vpc-1", "Migo-vpc-2"]
+CREATE_SCRIPTS = ["scripts/create_vpc_1.sh", "scripts/create_vpc_2.sh"]
 
-def run_command(cmd):
-    logger.info(f"🔹 Running command: {cmd}")
-    try:
-        subprocess.run(cmd, shell=True, check=True)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"❌ Command failed with exit code {e.returncode}")
+# -------------------
+# Helper function
+# -------------------
+def run_cmd(cmd):
+    logging.info(f"🔹 Running command: {cmd}")
+    result = subprocess.run(cmd, shell=True)
+    if result.returncode != 0:
+        logging.error(f"❌ Command failed with exit code {result.returncode}")
+    return result.returncode
 
+# -------------------
+# Command implementations
+# -------------------
 def create_vpcs():
-    logger.info("🚀 Starting VPC creation process...")
-    for vpc in VPCS:
-        logger.info(f"Creating {vpc['name']} using {vpc['script']}")
-        run_command(f"bash {vpc['script']} {vpc['name']} {HOST_IFACE}")
-    logger.info("✅ All VPCs created successfully!")
+    logging.info("🚀 Starting VPC creation process...")
+    for vpc, script in zip(VPCS, CREATE_SCRIPTS):
+        logging.info(f"Creating {vpc} using {script}")
+        run_cmd(f"bash {script} {vpc} {HOST_IFACE}")
+    logging.info("✅ All VPCs created successfully!")
 
 def delete_vpcs():
-    logger.info("🧹 Cleaning up all VPCs...")
+    logging.info("🧹 Cleaning up all VPCs...")
     for vpc in VPCS:
-        logger.info(f"🔹 Deleting VPC: {vpc['name']}")
-        # Delete namespaces safely
-        for ns in [f"{vpc['name']}-public", f"{vpc['name']}-private"]:
-            run_command(f"sudo ip netns delete {ns} || true")
-        # Delete bridge safely
-        bridge = f"{vpc['name']}-br0"
-        run_command(f"sudo ip link set {bridge} down || true")
-        run_command(f"sudo ip link delete {bridge} type bridge || true")
-    # Flush NAT rules
-    run_command("sudo iptables -t nat -F")
-    logger.info("✅ Cleanup completed. All VPCs removed.")
+        pub_ns = f"{vpc}-public"
+        priv_ns = f"{vpc}-private"
+        bridge = f"{vpc}-br0"
+        logging.info(f"🔹 Deleting VPC: {vpc}")
+        run_cmd(f"sudo ip netns delete {pub_ns} 2>/dev/null || true")
+        run_cmd(f"sudo ip netns delete {priv_ns} 2>/dev/null || true")
+        run_cmd(f"sudo ip link set {bridge} down 2>/dev/null || true")
+        run_cmd(f"sudo ip link delete {bridge} type bridge 2>/dev/null || true")
+    run_cmd("sudo iptables -t nat -F")
+    logging.info("✅ Cleanup completed. All VPCs removed.")
 
 def start_server(namespace="Migo-vpc-1-public", port=80):
-    logger.info(f"🚀 Starting HTTP server in namespace {namespace} on port {port}")
-    cmd = f"sudo ip netns exec {namespace} python3 -m http.server {port} &"
-    run_command(cmd)
+    logging.info(f"🚀 Starting HTTP server in namespace {namespace} on port {port}...")
+    run_cmd(f"sudo ip netns exec {namespace} python3 -m http.server {port} &")
+    logging.info("✅ Server started.")
 
 def stop_server():
-    logger.info("🛑 Stopping all HTTP servers...")
-    run_command("sudo pkill -f 'http.server' || true")
+    logging.info("🛑 Stopping all HTTP servers...")
+    run_cmd("sudo pkill -f 'python3 -m http.server'")
+    logging.info("✅ All servers stopped.")
 
-def show_help():
+def print_help():
     print("""
 Usage: python3 vpcctl.py <command> [options]
 
@@ -70,31 +75,32 @@ Commands:
   help               Show this help
 """)
 
-def main():
+# -------------------
+# Main entry point
+# -------------------
+if __name__ == "__main__":
     if len(sys.argv) < 2:
-        show_help()
+        print_help()
         sys.exit(1)
 
-    command = sys.argv[1].lower()
+    cmd = sys.argv[1].lower()
 
-    if command == "create":
+    if cmd == "create":
         create_vpcs()
-    elif command == "delete":
+    elif cmd == "delete":
         delete_vpcs()
-    elif command == "start-server":
+    elif cmd == "start-server":
         ns = sys.argv[2] if len(sys.argv) > 2 else "Migo-vpc-1-public"
-        port = sys.argv[3] if len(sys.argv) > 3 else 80
-        start_server(namespace=ns, port=port)
-    elif command == "stop-server":
+        port = int(sys.argv[3]) if len(sys.argv) > 3 else 80
+        start_server(ns, port)
+    elif cmd == "stop-server":
         stop_server()
-    elif command == "help":
-        show_help()
+    elif cmd == "help":
+        print_help()
     else:
-        logger.error(f"❌ Unknown command: {command}")
-        show_help()
+        logging.error(f"❌ Unknown command: {cmd}")
+        print_help()
 
-if __name__ == "__main__":
-    main()
 
 
 
