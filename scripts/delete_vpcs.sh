@@ -1,40 +1,48 @@
 #!/bin/bash
-# delete_vpcs.sh - Cleanup all VPCs, namespaces, bridges, and NAT rules
+# scripts/delete_vpcs.sh
+# Final version for deleting all VPCs and cleaning up resources
 
-# Hardcoded VPC names
+set -euo pipefail
+
 VPCS=("Migo-vpc-1" "Migo-vpc-2")
 
-# Delete namespaces and bridges
+echo "🧹 Deleting all VPCs..."
+
 for VPC in "${VPCS[@]}"; do
-    echo "🧹 Deleting VPC: $VPC"
+    echo "🔹 Deleting VPC: $VPC"
 
-    # Delete public and private namespaces
-    for NS_TYPE in "public" "private"; do
-        NS="${VPC}-${NS_TYPE}"
-        if ip netns list | grep -qw "$NS"; then
-            sudo ip netns delete "$NS"
-            echo "   ✅ Deleted namespace: $NS"
-        else
-            echo "   ⚠️ Namespace $NS does not exist"
-        fi
-    done
-
-    # Delete bridge
-    BR="${VPC}-br0"
-    if ip link show type bridge | grep -qw "$BR"; then
-        sudo ip link set "$BR" down
-        sudo ip link delete "$BR" type bridge
-        echo "   ✅ Deleted bridge: $BR"
+    # Delete public namespace if it exists
+    if ip netns list | grep -qw "${VPC}-public"; then
+        sudo ip netns delete "${VPC}-public"
+        echo "   ✅ Deleted namespace: ${VPC}-public"
     else
-        echo "   ⚠️ Bridge $BR does not exist"
+        echo "   ⚠️ Namespace ${VPC}-public does not exist, skipping."
+    fi
+
+    # Delete private namespace if it exists
+    if ip netns list | grep -qw "${VPC}-private"; then
+        sudo ip netns delete "${VPC}-private"
+        echo "   ✅ Deleted namespace: ${VPC}-private"
+    else
+        echo "   ⚠️ Namespace ${VPC}-private does not exist, skipping."
+    fi
+
+    # Delete bridge if it exists
+    if ip link show type bridge | grep -qw "${VPC}-br0"; then
+        sudo ip link set "${VPC}-br0" down
+        sudo ip link delete "${VPC}-br0" type bridge
+        echo "   ✅ Deleted bridge: ${VPC}-br0"
+    else
+        echo "   ⚠️ Bridge ${VPC}-br0 does not exist, skipping."
     fi
 done
 
-# Flush NAT table
+# Flush NAT table to remove MASQUERADE rules
 sudo iptables -t nat -F
-echo "✅ Flushed NAT table"
+echo "🔹 Flushed NAT table."
 
-echo "✅ All VPCs cleaned up!"
+echo "✅ Cleanup completed. All VPCs removed."
+
 
 
 
