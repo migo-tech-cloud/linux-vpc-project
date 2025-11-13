@@ -1,4 +1,4 @@
-### ** runbook.md**
+### **runbook.md**
 
 # Linux VPC Project - Runbook
 
@@ -34,10 +34,10 @@ ip netns exec Migo-vpc-1-public ip route
 ip netns exec Migo-vpc-1-public iptables -L -n
 
 ## Troubleshooting
-Issue ================================================= Solution
-Nexthop invalid gateway =============================== Ensure bridge IP is in the same subnet as namespace IP.
-Cannot find veth device ===============================	Ensure create scripts ran successfully; check namespace names.
-HTTP server not reachable =============================	Check firewall rules and namespace IPs.
+Issue =========================== Solution
+Nexthop invalid gateway ========= Ensure bridge IP is in the same subnet as namespace IP.
+Cannot find veth device =========	Ensure create scripts ran successfully; check namespace names.
+HTTP server not reachable =======	Check firewall rules and namespace IPs.
 
 ## Cleanup Steps
 ### Stop servers
