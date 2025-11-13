@@ -41,9 +41,14 @@ sudo ip -n $PRIV_NS link set veth2-priv up
 sudo ip -n $PUB_NS addr add 10.1.1.2/16 dev veth2-pub
 sudo ip -n $PRIV_NS addr add 10.1.2.2/16 dev veth2-priv
 
-# Enable IP forwarding and NAT
+# Enable IP forwarding 
 sudo sysctl -w net.ipv4.ip_forward=1
-sudo iptables -t nat -A POSTROUTING -o $HOST_IFACE -j MASQUERADE
+
+# Set default route inside public namespace
+sudo ip netns exec ${VPC_NAME}-public ip route add default via $BRIDGE_IP
+
+# Apply NAT/masquerade for internet access
+sudo iptables -t nat -A POSTROUTING -s $SUBNET_PUBLIC -o $HOST_IFACE -j MASQUERADE
 
 echo "✅ VPC $VPC_NAME successfully created!"
 echo "Bridge IP: 10.1.0.1/16"
